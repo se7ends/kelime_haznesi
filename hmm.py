@@ -195,9 +195,9 @@ def ana_islem():
     
     OPTIMIZE_SOZLUK = {}
     for kelime, yillar in GENEL_SOZLUK.items():
-        # Toplamda 30'dan az geçen kelimeleri at
+        # Toplamda 150'den az geçen kelimeleri at
         toplam = sum(d["count"] for d in yillar.values())
-        if toplam > 30:
+        if toplam > 150:
             OPTIMIZE_SOZLUK[kelime] = yillar
 
     with open(CIKTI_YOLU, "w", encoding="utf-8") as f:
