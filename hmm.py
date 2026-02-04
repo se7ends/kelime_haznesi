@@ -6,7 +6,8 @@ from docx import Document
 
 # --- AYARLAR ---
 ANA_KLASOR_YOLU = r"C:\Users\yunus\OneDrive\Desktop\DATABASE\tbmm_tutanak"
-CIKTI_YOLU = os.path.join(os.environ["USERPROFILE"], "Desktop", "veri.json")
+MEVCUT_KLASOR = os.path.dirname(os.path.abspath(__file__))
+CIKTI_YOLU = os.path.join(MEVCUT_KLASOR, "veri.json")
 
 # --- YIL HARİTASI (TBMM Dönem Başlangıçları) ---
 # Mantık: Dönem başlangıç yılı + (Yasama Yılı - 1)
