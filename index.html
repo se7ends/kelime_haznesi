@@ -2,25 +2,47 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>TBMM Kelime Arşivi</title>
+    <title>TBMM Kelime Analizi</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        input { padding: 10px; width: 60%; font-size: 16px; border: 2px solid #ddd; border-radius: 5px; }
-        button { padding: 10px 20px; font-size: 16px; background: #c0392b; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        button:hover { background: #e74c3c; }
-        canvas { margin-top: 30px; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; color: #333; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .container { width: 90%; max-width: 1000px; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        h1 { margin-bottom: 5px; color: #2c3e50; }
+        .subtitle { color: #7f8c8d; margin-bottom: 30px; font-size: 0.9em; }
+        
+        .search-box { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
+        input { padding: 12px; width: 300px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; transition: 0.3s; }
+        input:focus { border-color: #c0392b; outline: none; }
+        button { padding: 12px 25px; background: #c0392b; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; transition: 0.3s; }
+        button:hover { background: #e74c3c; transform: translateY(-2px); }
+
+        #uyariKutusu {
+            display: none;
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        canvas { margin-top: 20px; }
     </style>
 </head>
 <body>
 
     <div class="container">
         <h1>TBMM Tutanaklarında Kelime Ara</h1>
-        <p>1999'dan günümüze kelimelerin yolculuğu.</p>
+        <p class="subtitle">Veriler takvim yıllarına göre normalize edilmiştir.</p>
         
-        <input type="text" id="aramaKutusu" placeholder="Örn: özgürlük, anayasa, enflasyon...">
-        <button onclick="kelimeGetir()">Analiz Et</button>
+        <div class="search-box">
+            <input type="text" id="aramaKutusu" placeholder="Aranacak kelime (örn: demokrasi)">
+            <button onclick="kelimeGetir()">Analiz Et</button>
+        </div>
+
+        <div id="uyariKutusu">⚠️ <strong>Dikkat:</strong> Seçilen yıl için veri kaynağı çok az (20'den az oturum). Düşüş normal olabilir.</div>
 
         <canvas id="grafikTablosu"></canvas>
     </div>
@@ -29,7 +51,6 @@
         let tumVeri = {};
         let mevcutGrafik = null;
 
-        // Sayfa açılınca JSON verisini çek
         fetch('veri.json')
             .then(response => response.json())
             .then(data => {
@@ -39,41 +60,95 @@
 
         function kelimeGetir() {
             const kelime = document.getElementById('aramaKutusu').value.toLowerCase().trim();
-            
+            const uyari = document.getElementById('uyariKutusu');
+            uyari.style.display = 'none';
+
             if (!tumVeri[kelime]) {
-                alert("Bu kelime veri setinde bulunamadı veya çok az kullanılmış.");
+                alert("Kelime bulunamadı!");
                 return;
             }
 
-            const kullanimGecmisi = tumVeri[kelime];
-            const yillar = Object.keys(kullanimGecmisi).sort(); // Yılları sırala
-            const sayilar = yillar.map(yil => kullanimGecmisi[yil]);
+            const veriObjesi = tumVeri[kelime];
+            // Yılları sıralayalım (String oldukları için sayısal sıralama yapmalıyız)
+            const yillar = Object.keys(veriObjesi).sort((a, b) => parseInt(a) - parseInt(b));
+            
+            const sayilar = [];
+            const metaBilgiler = [];
+            const dosyaSayilari = [];
 
-            cizGrafik(kelime, yillar, sayilar);
+            yillar.forEach(yil => {
+                sayilar.push(veriObjesi[yil].count);
+                metaBilgiler.push(veriObjesi[yil].meta);
+                dosyaSayilari.push(veriObjesi[yil].files);
+            });
+
+            cizGrafik(kelime, yillar, sayilar, metaBilgiler, dosyaSayilari);
         }
 
-        function cizGrafik(label, labels, data) {
+        function cizGrafik(label, labels, data, meta, files) {
             const ctx = document.getElementById('grafikTablosu').getContext('2d');
-            
-            // Eğer eski bir grafik varsa yok et (üst üste binmesin)
+            const uyari = document.getElementById('uyariKutusu');
+
             if (mevcutGrafik) {
                 mevcutGrafik.destroy();
             }
+
+            // Düşük verili noktaları kırmızı yapmak için renk dizisi oluştur
+            const pointColors = files.map(f => f < 20 ? 'red' : 'rgb(192, 57, 43)');
+            const pointRadiuses = files.map(f => f < 20 ? 6 : 4);
 
             mevcutGrafik = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: `"${label}" kelimesinin kullanım sıklığı`,
+                        label: `"${label}" kelimesi (Yıllık Toplam)`,
                         data: data,
                         borderColor: 'rgb(192, 57, 43)',
-                        tension: 0.1,
-                        fill: false
+                        pointBackgroundColor: pointColors, // Nokta renkleri
+                        pointRadius: pointRadiuses,        // Nokta büyüklüğü
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: {
+                            target: 'origin',
+                            above: 'rgba(192, 57, 43, 0.1)'
+                        }
                     }]
                 },
                 options: {
                     responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                // Tooltip içine detayları ekle
+                                afterLabel: function(context) {
+                                    const index = context.dataIndex;
+                                    const dosyaSayisi = files[index];
+                                    const donemAdi = meta[index];
+                                    
+                                    let uyariMetni = "";
+                                    if (dosyaSayisi < 20) {
+                                        uyari.style.display = 'block';
+                                        uyari.innerHTML = `⚠️ <strong>${labels[index]} Yılı (${donemAdi}):</strong> Sadece ${dosyaSayisi} dosya var. Veri az olduğu için grafik düşük görünebilir.`;
+                                        uyariMetni = "\n⚠️ (Yetersiz Veri Kaynağı!)";
+                                    } else {
+                                        uyari.style.display = 'none';
+                                    }
+
+                                    return [
+                                        `------------------`,
+                                        `Dönem: ${donemAdi}`,
+                                        `Dosya Kaynağı: ${dosyaSayisi} adet`,
+                                        uyariMetni
+                                    ];
+                                }
+                            }
+                        }
+                    }
                 }
             });
         }
